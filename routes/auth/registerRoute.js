@@ -5,11 +5,12 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-
-
 function generateUsername() {
   const randomNumbers = Math.floor(Math.random() * 10000);
-  const randomAlphabets = Math.random().toString(36).substring(2, 5).toUpperCase();
+  const randomAlphabets = Math.random()
+    .toString(36)
+    .substring(2, 5)
+    .toUpperCase();
   return `MEMBER${randomNumbers}${randomAlphabets}`;
 }
 
@@ -65,77 +66,74 @@ router.post("/register", async (req, res) => {
       accountType,
       referralLink: generateReferralLink(req, invitationCode),
       avatar: generateProfilePicture(req),
-      referrer: referrer ? referrer._id : null
+      referrer: referrer ? referrer._id : null,
     });
 
     await user.save();
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {  expiresIn: 3600 * 10  });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: 3600 * 10,
+    });
     user.token = token;
     user.password = undefined;
 
-
+    // Update referrer's direct subordinates with new user's data
     if (referrer) {
+      const today = new Date();
       let currentReferrer = referrer;
       let level = 1;
-      const today = new Date();
-      today.toLocaleDateString('en-IN');
-    
-      while (currentReferrer && level <= 5) {
-        const referredUserData = {
-          mobile,
-          uid: user.uid,
-          date: today,
-          level
-        };
-    
-        currentReferrer.referredUsers.push(referredUserData);
-    
-        await currentReferrer.save();
-        currentReferrer = await User.findById(currentReferrer.referrer);
-        level++;
-      }
-    }
-    if (referrer) {
-      let currentReferrer = referrer;
-      let level = 1;
-      const today = new Date();
-      today.toLocaleDateString('en-IN');
 
       while (currentReferrer && level <= 5) {
-        const subordinateData = {
-          date: today,
-          noOfRegister: 1,
-          depositNumber: 0,
-          depositAmount: 0,
-          firstDeposit: 0,
-          level: level
-        };
+        // Assuming user._id represents the ObjectId of the referred user
+        const referredUserData = user._id;
 
-        
+        // Add the user to the referrer's direct subordinates
         if (level === 1) {
-          const existingDirectSubordinate = currentReferrer.directSubordinates.find(
-            (sub) => sub.date.getTime() === today.getTime()
-          );
+          const existingDirectSubordinate =
+            currentReferrer.directSubordinates.find(
+              (sub) =>
+                sub.userId.toString() === user._id.toString() &&
+                sub.date.toDateString() === today.toDateString()
+            );
 
-          if (existingDirectSubordinate) {
-            existingDirectSubordinate.noOfRegister++;
+          if (!existingDirectSubordinate) {
+            currentReferrer.directSubordinates.push({
+              userId: user._id,
+              noOfRegister: 1,
+              depositNumber: 0,
+              depositAmount: 0,
+              firstDeposit: 0,
+              date: today,
+              level,
+            });
           } else {
-            currentReferrer.directSubordinates.push(subordinateData);
+            existingDirectSubordinate.noOfRegister++;
           }
         } else {
+          // Add the user to the referrer's team subordinates
           const existingTeamSubordinate = currentReferrer.teamSubordinates.find(
-            (sub) => sub.date.getTime() === today.getTime()
+            (sub) =>
+              sub.userId.toString() === user._id.toString() &&
+              sub.date.toDateString() === today.toDateString()
           );
 
-          if (existingTeamSubordinate) {
-            existingTeamSubordinate.noOfRegister++;
+          if (!existingTeamSubordinate) {
+            currentReferrer.teamSubordinates.push({
+              userId: user._id,
+              noOfRegister: 1,
+              depositNumber: 0,
+              depositAmount: 0,
+              firstDeposit: 0,
+              date: today,
+              level,
+            });
           } else {
-            currentReferrer.teamSubordinates.push(subordinateData);
-            
+            existingTeamSubordinate.noOfRegister++;
           }
         }
-      
+
+        currentReferrer.referredUsers.push(referredUserData);
+
         await currentReferrer.save();
         currentReferrer = await User.findById(currentReferrer.referrer);
         level++;
@@ -145,13 +143,12 @@ router.post("/register", async (req, res) => {
     res.status(200).json({
       success: true,
       token,
-      user
+      user,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: "Server Error" });
   }
 });
-
 
 module.exports = router;

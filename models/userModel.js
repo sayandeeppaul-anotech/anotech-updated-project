@@ -1,13 +1,12 @@
 const mongoose = require("mongoose");
-const ReferredUser = require("./ReferredUser");
 
 function round(val) {
   return Math.round(val * 100) / 100;
 }
 
 const subordinateSchema = new mongoose.Schema(
-  
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, required: true }, // New field to track the user's ID
     noOfRegister: { type: Number, default: 0 },
     depositNumber: { type: Number, default: 0 },
     depositAmount: { type: Number, default: 0 },
@@ -26,14 +25,14 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true },
   uid: { type: String, required: true, unique: true },
   referralLink: { type: String, default: null },
-  walletAmount: { type: Number, default: 0 ,set: round},
+  walletAmount: { type: Number, default: 0, set: round },
   accountType: {
     type: String,
     enum: ["Admin", "Normal", "Restricted"],
-    default: "Normal"
+    default: "Normal",
   },
   lastBonusWithdrawal: { type: Date, default: null },
-  totalCommission: { type: Number, default: 0 ,set: round},
+  totalCommission: { type: Number, default: 0, set: round },
   avatar: { type: String, default: null },
   token: { type: String, default: null },
   directSubordinates: [subordinateSchema],
@@ -54,7 +53,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  referredUsers: [ReferredUser.schema],
+  referredUsers: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ReferredUser",
+    },
+  ],
   commissionRecords: [
     {
       level: Number,
@@ -62,22 +66,24 @@ const userSchema = new mongoose.Schema({
       date: Date,
       uid: String,
       betAmount: { type: Number, default: 0 },
-      depositAmount: Number
-    }
+      depositAmount: Number,
+    },
   ],
   notification: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "notify"
-    }
+      ref: "notify",
+    },
   ],
-  bankDetails: [{
-    name: String,
-    accountNo: String,
-    ifscCode: String,
-    mobile: String,
-    bankName: String,
-  }],
+  bankDetails: [
+    {
+      name: String,
+      accountNo: String,
+      ifscCode: String,
+      mobile: String,
+      bankName: String,
+    },
+  ],
   withdrawRecords: [
     {
       type: mongoose.Schema.Types.ObjectId,
@@ -86,18 +92,14 @@ const userSchema = new mongoose.Schema({
         {
           status: "NA",
           balance: 0,
-          withdrawMethod: ""
-        }
-      ]
-    }
+          withdrawMethod: "",
+        },
+      ],
+    },
   ],
-  achievements: [String]
+  achievements: [String],
 });
 
 const User = mongoose.model("User", userSchema);
 
 module.exports = User;
-
-
-
-
