@@ -29,6 +29,7 @@ const trxresult = require('../TRXResult/TRXResult')
 const wingoresult = require('./wingo/wingoResultroute')
 const k3result = require('../K3Resut/K3ResultRoute')
 const TrxResultRoute = require('../routes/Trx/TrxResultRoute')
+const depositBonusRoute = require('../routes/Admin/depositBonusRoute')
 
 router.use('/', registerRoute);
 router.use('/', loginRoute);
@@ -58,5 +59,6 @@ router.use('/',trxresult)
 router.use('/',wingoresult)
 router.use('/',k3result)
 router.use('/',TrxResultRoute)
+router.use('/',depositBonusRoute)
 
 module.exports = router;
