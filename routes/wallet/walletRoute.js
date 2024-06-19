@@ -301,6 +301,18 @@ router.post("/wallet", async (req, res) => {
       { new: true }
     );
 
+    // Store deposit in DepositHistory model
+    const depositEntry = new Deposit({
+      userId: userId,
+      uid: updatedUser.uid, // Assuming uid is fetched from updatedUser
+      depositAmount: actualAmount,
+      depositDate: new Date(),
+      depositStatus: "completed",
+      depositId: depositId, // Assuming depositId is fetched from param2
+      depositMethod: "gateway", // Assuming deposit is made via gateway
+    });
+    await depositEntry.save();
+
     let isFirstDeposit = false;
     if (!updatedUser.firstDepositMade) {
       updatedUser.firstDepositMade = true;
@@ -332,7 +344,7 @@ router.post("/wallet", async (req, res) => {
         }
 
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize time to compare only dates
+        today.setHours(0, 0, 0, 0);
 
         const updateSubordinateEntry = async (
           subordinatesArray,

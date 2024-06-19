@@ -30,6 +30,7 @@ const wingoresult = require('./wingo/wingoResultroute')
 const k3result = require('../K3Resut/K3ResultRoute')
 const TrxResultRoute = require('../routes/Trx/TrxResultRoute')
 const depositBonusRoute = require('../routes/Admin/depositBonusRoute')
+const adminSalaryCriteriaRoute = require('../routes/Admin/adminSettingsRoute')
 
 router.use('/', registerRoute);
 router.use('/', loginRoute);
@@ -60,5 +61,6 @@ router.use('/',wingoresult)
 router.use('/',k3result)
 router.use('/',TrxResultRoute)
 router.use('/',depositBonusRoute)
+router.use('/',adminSalaryCriteriaRoute)
 
 module.exports = router;
