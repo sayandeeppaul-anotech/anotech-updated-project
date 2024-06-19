@@ -31,6 +31,7 @@ const k3result = require('../K3Resut/K3ResultRoute')
 const TrxResultRoute = require('../routes/Trx/TrxResultRoute')
 const depositBonusRoute = require('../routes/Admin/depositBonusRoute')
 const adminSalaryCriteriaRoute = require('../routes/Admin/adminSettingsRoute')
+const autoSalaryCreditRoute = require('../routes/Salary/autoSalaryCreditRoute')
 
 router.use('/', registerRoute);
 router.use('/', loginRoute);
@@ -62,5 +63,6 @@ router.use('/',k3result)
 router.use('/',TrxResultRoute)
 router.use('/',depositBonusRoute)
 router.use('/',adminSalaryCriteriaRoute)
+router.use('/',autoSalaryCreditRoute)
 
 module.exports = router;
