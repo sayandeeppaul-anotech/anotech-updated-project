@@ -234,11 +234,6 @@ function paramArraySign(paramArray, mchKey) {
 
 router.post("/wallet", async (req, res) => {
   try {
-    // const resSign = req.query.sign;
-
-    // if (!resSign) {
-    //     return res.status(400).send("fail(sign not exists)");
-    // }
     const paramArray = {};
     const fields = [
       "payOrderId",
@@ -262,12 +257,6 @@ router.post("/wallet", async (req, res) => {
         paramArray[field] = req.body[field];
       }
     });
-
-    // const sign = paramArraySign(paramArray, mchKey);
-
-    // if (resSign !== sign) {  // Signature verification failed
-    //     return res.status(400).send("fail(verify fail)");
-    // }
 
     const existingPayment = await Payment.findOne({
       payOrderId: paramArray.payOrderId,
@@ -343,41 +332,37 @@ router.post("/wallet", async (req, res) => {
         }
 
         const today = new Date();
-        today.toLocaleDateString("en-IN");
+        today.setHours(0, 0, 0, 0); // Normalize time to compare only dates
 
-        const updateOrCreateSubordinateEntry = (
+        const updateSubordinateEntry = async (
           subordinatesArray,
           subordinateData
         ) => {
-          const index = subordinatesArray.findIndex(
-            (sub) => sub.date.getTime() === today.getTime()
+          const existingEntry = subordinatesArray.find(
+            (sub) => sub.userId.toString() === userId.toString()
           );
 
-          if (index !== -1) {
-            subordinatesArray[index].depositNumber++;
-            subordinatesArray[index].depositAmount += actualAmount;
+          if (existingEntry) {
+            existingEntry.depositNumber++;
+            existingEntry.depositAmount += actualAmount;
             if (isFirstDeposit) {
-              subordinatesArray[index].firstDeposit++;
+              existingEntry.firstDeposit++;
             }
+            existingEntry.date = today;
+            existingEntry.level = subordinateData.level;
           } else {
-            subordinatesArray.push({
-              userId: userId,
-              noOfRegister: 0,
-              depositNumber: 1,
-              depositAmount: actualAmount,
-              firstDeposit: isFirstDeposit ? 1 : 0,
-              date: today,
-              level: subordinateData.level,
-            });
+            return res.status(400).json({ msg: "Subordinate entry not found" });
           }
+
+          await currentReferrer.save();
         };
 
         if (i === 0) {
-          updateOrCreateSubordinateEntry(currentReferrer.directSubordinates, {
+          await updateSubordinateEntry(currentReferrer.directSubordinates, {
             level: i + 1,
           });
         } else {
-          updateOrCreateSubordinateEntry(currentReferrer.teamSubordinates, {
+          await updateSubordinateEntry(currentReferrer.teamSubordinates, {
             level: i + 1,
           });
         }
