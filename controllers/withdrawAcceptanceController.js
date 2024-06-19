@@ -17,39 +17,51 @@ exports.withdrawAcceptanceController = async (req, res) => {
       });
     }
 
-    const updatedRequest = await Withdraw.findByIdAndUpdate(
-      withdrawId,
-      { status: acceptanceType },
-      { new: true }
-    );
+    const withdrawRequest = await Withdraw.findById(withdrawId);
 
-    if (!updatedRequest) {
+    if (!withdrawRequest) {
       return res.status(404).json({
-        message: "Withdrawal request not found or already processed.",
+        message: "Withdrawal request not found.",
+      });
+    }
+
+    if (withdrawRequest.status === "Completed" || withdrawRequest.status === "Rejected") {
+      return res.status(400).json({
+        message: "This withdrawal request has already been processed.",
+      });
+    }
+
+    withdrawRequest.status = acceptanceType;
+    const updatedRequest = await withdrawRequest.save();
+
+    const user = await User.findById(updatedRequest.userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
       });
     }
 
     if (acceptanceType === "Completed") {
-      // Update the user's wallet
-      const user = await User.findById(updatedRequest.userId);
-      if (!user) {
-        return res.status(404).json({
-          message: "User not found.",
-        });
-      }
-
-      // Deduct the balance from the user's wallet
       user.walletAmount -= updatedRequest.balance;
       await user.save();
-    }
 
-    res.status(200).json({
-      message: `Withdraw request has been ${acceptanceType}.`,
-      updatedRequest: updatedRequest,
-    });
+      res.status(200).json({
+        message: `Withdrawal request has been ${acceptanceType}.`,
+        updatedRequest,
+      });
+    } else if (acceptanceType === "Rejected") {
+      // Refund the balance back to the user's wallet
+      user.walletAmount += updatedRequest.balance;
+      await user.save();
+
+      res.status(200).json({
+        message: `Withdrawal request has been ${acceptanceType} and the balance has been refunded.`,
+        updatedRequest,
+      });
+    }
   } catch (error) {
     res.status(500).json({
-      message: "Error updating withdraw request",
+      message: "Error updating withdrawal request",
       error: error.message,
     });
   }

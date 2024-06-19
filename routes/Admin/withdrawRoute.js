@@ -4,8 +4,8 @@ const { requestWithdraw } = require("../../controllers/requestWithdrawController
 const auth = require("../../middlewares/auth");
 const {isAdmin,isNormal,} = require("../../middlewares/roleSpecificMiddleware");
 const { fetchWithdrawController } = require("../../controllers/fetchWithdrawController");
-const {withdrawAcceptanceController,} = require("../../controllers/withdrawAcceptanceController");
-const {totalWithdrawRequestController,} = require("../../controllers/totalWithdrawRequestController");
+const {withdrawAcceptanceController} = require("../../controllers/withdrawAcceptanceController");
+const {totalWithdrawRequestController} = require("../../controllers/totalWithdrawRequestController");
 const { totalWithdrawsController } = require("../../controllers/totalWithdrawsController");
 const {getTotalWithdrawAmountLast24Hours,} = require("../../controllers/todaysWithdrawController");
 

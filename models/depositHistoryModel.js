@@ -8,6 +8,7 @@ const depositHistorySchema = new mongoose.Schema({
     depositStatus: { type: String, required: true },
     depositId: { type: String, required: true },
     depositMethod: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
 });
 
 const DepositHistory = mongoose.model('DepositHistory', depositHistorySchema);
