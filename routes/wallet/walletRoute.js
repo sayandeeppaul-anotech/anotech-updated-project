@@ -31,205 +31,208 @@ function paramArraySign(paramArray, mchKey) {
 
 router.post("/wallet", async (req, res) => {
   try {
-    // const resSign = req.query.sign;
-
-    // if (!resSign) {
-    //     return res.status(400).send("fail(sign not exists)");
-    // }
-
-    const paramArray = {};
-    const fields = [
-      "payOrderId",
-      "income",
-      "mchId",
-      "appId",
-      "productId",
-      "mchOrderNo",
-      "amount",
-      "status",
-      "channelOrderNo",
-      "channelAttach",
-      "param1",
-      "param2",
-      "paySuccTime",
-      "backType",
+   const paramArray = {};
+   const fields = [
+    "payOrderId",
+    "income",
+    "mchId",
+    "appId",
+    "productId",
+    "mchOrderNo",
+    "amount",
+    "status",
+    "channelOrderNo",
+    "channelAttach",
+    "param1",
+    "param2",
+    "paySuccTime",
+    "backType",
+   ];
+ 
+   fields.forEach((field) => {
+    if (req.body[field]) {
+     paramArray[field] = req.body[field];
+    }
+   });
+ 
+   const existingPayment = await Payment.findOne({
+    payOrderId: paramArray.payOrderId,
+   });
+   if (existingPayment) {
+    return res.status(400).json({ msg: "Payment already added" });
+   }
+ 
+   const newPayment = new Payment(paramArray);
+   await newPayment.save();
+ 
+   const { amount, param1: userId, param2: depositId } = paramArray;
+ 
+   if (!amount) {
+    return res.status(400).json({ msg: "Amount is required" });
+   }
+ 
+   // Convert the amount from Chinese gateway format
+   const actualAmount = amount / 100;
+ 
+   const mainLevelConfig = await MainLevelModel.findOne();
+   if (
+    !mainLevelConfig ||
+    !mainLevelConfig.levels ||
+    mainLevelConfig.levels.length === 0
+   ) {
+    return res
+     .status(500)
+     .json({ msg: "Commission levels configuration not found" });
+   }
+ 
+   const depositDetails = await Deposit.find({ userId: userId });
+   const totalPrevDepositAmount = depositDetails.reduce(
+    (total, depositEntry) => total + depositEntry.depositAmount,
+    0
+   );
+   const totalDeposit = totalPrevDepositAmount + actualAmount;
+ 
+   const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { walletAmount: actualAmount } },
+    { new: true }
+   );
+ 
+   // Store deposit in DepositHistory model
+   const depositEntry = new Deposit({
+    userId: userId,
+    uid: updatedUser.uid, // Assuming uid is fetched from updatedUser
+    depositAmount: actualAmount,
+    depositDate: new Date(),
+    depositStatus: "completed",
+    depositId: depositId, // Assuming depositId is fetched from param2
+    depositMethod: "gateway", // Assuming deposit is made via gateway
+   });
+   await depositEntry.save();
+ 
+   let isFirstDeposit = false;
+   if (!updatedUser.firstDepositMade) {
+    updatedUser.firstDepositMade = true;
+    isFirstDeposit = true;
+    await updatedUser.save();
+   }
+ 
+   await Deposit.updateOne(
+    { userId: userId, _id: depositId },
+    { depositStatus: "completed" }
+   );
+ 
+   addTransactionDetails(userId, actualAmount, "deposit", new Date());
+ 
+   if (updatedUser.referrer) {
+    const commissionRates = await Commission.findOne();
+    const commissionRatesArray = [
+     commissionRates.level1,
+     commissionRates.level2,
+     commissionRates.level3,
+     commissionRates.level4,
+     commissionRates.level5,
     ];
-
-    fields.forEach((field) => {
-      if (req.body[field]) {
-        paramArray[field] = req.body[field];
+ 
+    let currentReferrer = await User.findById(updatedUser.referrer);
+    for (let i = 0; i < 5; i++) {
+     if (!currentReferrer) {
+      break;
+     }
+ 
+     const today = new Date();
+     today.setHours(0, 0, 0, 0); // Normalize time to compare only dates
+ 
+     const updateSubordinateEntry = async (
+      subordinatesArray,
+      subordinateData
+     ) => {
+      const existingEntry = subordinatesArray.find(
+       (sub) => sub.userId.toString() === userId.toString()
+      );
+ 
+      if (existingEntry) {
+       existingEntry.depositNumber++;
+       existingEntry.depositAmount += actualAmount;
+       if (isFirstDeposit) {
+        existingEntry.firstDeposit++;
+       }
+       existingEntry.date = today;
+       existingEntry.level = subordinateData.level;
+      } else {
+       return res.status(400).json({ msg: "Subordinate entry not found" });
       }
+ 
+      await currentReferrer.save();
+     };
+ 
+     if (i === 0) {
+      await updateSubordinateEntry(currentReferrer.directSubordinates, {
+       level: i + 1,
+      });
+     } else {
+      await updateSubordinateEntry(currentReferrer.teamSubordinates, {
+       level: i + 1,
+      });
+     }
+ 
+     let commission = actualAmount * commissionRatesArray[i];
+     if (isFirstDeposit) {
+      currentReferrer.walletAmount += commission;
+     }
+ 
+     let existingRecord = currentReferrer.commissionRecords.find(
+      (record) =>
+       record.date.getTime() === today.getTime() &&
+       record.uid === updatedUser.uid
+     );
+ 
+     if (existingRecord) {
+      existingRecord.depositAmount += actualAmount;
+      existingRecord.commission += commission;
+     } else {
+      currentReferrer.commissionRecords.push({
+       level: i + 1,
+       commission: commission,
+       date: today,
+       uid: updatedUser.uid,
+       depositAmount: actualAmount,
+      });
+     }
+     await currentReferrer.save();
+     addTransactionDetails(userId, actualAmount, "Interest", new Date());
+     currentReferrer = await User.findById(currentReferrer.referrer);
+    }
+   }
+ 
+   if (isFirstDeposit) {
+    const depositBonus = await Deposit.find().sort({
+     minimumDeposit: 1,
     });
-
-    // const sign = paramArraySign(paramArray, mchKey);
-
-    // if (resSign !== sign) {  // Signature verification failed
-    //     return res.status(400).send("fail(verify fail)");
-    // }
-
-    // Check if payment already exists
-    const existingPayment = await Payment.findOne({
-      payOrderId: paramArray.payOrderId,
-    });
-    if (existingPayment) {
-      return res.status(400).json({ msg: "Payment already added" });
-    }
-
-    // If not, save the new payment
-    const newPayment = new Payment(paramArray);
-    await newPayment.save();
-
-    // Handle business logic here
-    console.log(paramArray);
-
-    const { amount, param1: userId, param2: depositId } = paramArray;
-
-    if (!amount) {
-      return res.status(400).json({ msg: "Amount is required" });
-    }
-
-    // Fetch commission levels configuration
-    const mainLevelConfig = await MainLevelModel.findOne();
-    if (
-      !mainLevelConfig ||
-      !mainLevelConfig.levels ||
-      mainLevelConfig.levels.length === 0
-    ) {
-      return res
-        .status(500)
-        .json({ msg: "Commission levels configuration not found" });
-    }
-    const { levels } = mainLevelConfig;
-
-    // Calculate total deposit
-    const depositDetails = await Deposit.find({ userId: userId });
-    const totalPrevDepositAmount = depositDetails.reduce(
-      (total, depositEntry) => total + depositEntry.depositAmount,
-      0
-    );
-
-    const totalDeposit = totalPrevDepositAmount + amount;
-
-    // Update user wallet and achievements based on levels
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $inc: { walletAmount: amount / 100 } },
-      { new: true }
-    );
-
-    // Check and update first deposit
-    let isFirstDeposit = false;
-    if (!updatedUser.firstDepositMade) {
-      updatedUser.firstDepositMade = true;
-      isFirstDeposit = true;
-      await updatedUser.save();
-    }
-
-    // Update deposit history status
-    await Deposit.updateOne(
-      { userId: userId, _id: depositId },
-      { depositStatus: "completed" }
-    );
-
-    addTransactionDetails(userId, amount, "deposit", new Date());
-
-    // Distribute commission up the chain
-    if (updatedUser.referrer) {
-      const commissionRates = await Commission.findOne();
-      const commissionRatesArray = [
-        commissionRates.level1,
-        commissionRates.level2,
-        commissionRates.level3,
-        commissionRates.level4,
-        commissionRates.level5,
-      ];
-
-      let currentReferrer = await User.findById(updatedUser.referrer);
-      for (let i = 0; i < 5; i++) {
-        if (!currentReferrer) {
-          break;
-        }
-
-        // Update subordinate data
-        const today = new Date();
-        today.toLocaleDateString("en-IN");
-
-        // Helper function to update or create an entry in the subordinates array
-        const updateOrCreateSubordinateEntry = (
-          subordinatesArray,
-          subordinateData
-        ) => {
-          const index = subordinatesArray.findIndex(
-            (sub) => sub.date.getTime() === today.getTime()
-          );
-
-          if (index !== -1) {
-            subordinatesArray[index].depositNumber++;
-            subordinatesArray[index].depositAmount += amount;
-            if (isFirstDeposit) {
-              subordinatesArray[index].firstDeposit++;
-            }
-          } else {
-            subordinatesArray.push({
-              userId: userId,
-              noOfRegister: 0,
-              depositNumber: 1,
-              depositAmount: amount,
-              firstDeposit: isFirstDeposit ? 1 : 0,
-              date: today,
-              level: subordinateData.level,
-            });
-          }
-        };
-
-        // Update direct or team subordinates based on the level
-        if (i === 0) {
-          updateOrCreateSubordinateEntry(currentReferrer.directSubordinates, {
-            level: i + 1,
-          });
-        } else {
-          updateOrCreateSubordinateEntry(currentReferrer.teamSubordinates, {
-            level: i + 1,
-          });
-        }
-
-        // Calculate and add commission
-        let commission = amount * commissionRatesArray[i];
-        if (isFirstDeposit) {
-          currentReferrer.walletAmount += commission;
-        }
-
-        // Update commission records
-        let existingRecord = currentReferrer.commissionRecords.find(
-          (record) =>
-            record.date.getTime() === today.getTime() &&
-            record.uid === updatedUser.uid
-        );
-
-        if (existingRecord) {
-          existingRecord.depositAmount += amount;
-          existingRecord.commission += commission;
-        } else {
-          currentReferrer.commissionRecords.push({
-            level: i + 1,
-            commission: commission,
-            date: today,
-            uid: updatedUser.uid,
-            depositAmount: amount,
-          });
-        }
-        await currentReferrer.save();
-        addTransactionDetails(userId, amount, "Interest", new Date());
-        currentReferrer = await User.findById(currentReferrer.referrer);
+    let bonusAmount = 0;
+ 
+    if (depositBonus.length > 0) {
+     for (let i = depositBonus.length - 1; i >= 0; i--) {
+      if (totalDeposit >= depositBonus[i].minimumDeposit) {
+       bonusAmount = depositBonus[i].bonus;
+       break;
       }
+     }
     }
-
-    res.status(200).json({ msg: "Wallet updated" });
+ 
+    updatedUser.walletAmount += bonusAmount;
+    await updatedUser.save();
+    console.log(
+     `One-time bonus of ${bonusAmount} added to user ${userId}'s wallet.`
+    );
+   }
+ 
+   res.status(200).json({ msg: "Wallet updated" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Server Error" });
+   console.error(err);
+   res.status(500).json({ msg: "Server Error" });
   }
-});
+ });
 
 router.post("/rejectDeposit", async (req, res) => {
   try {

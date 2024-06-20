@@ -62,15 +62,15 @@ wss.on("connection", async (ws) => {
   });
 });
 
-// createTimer(Timer1Min, 1, "1min"); // 1 min
-// createTimer(Timer3Min, 3, "3min"); // 3 min
-// createTimer(Timer5Min, 5, "5min"); // 5 min
-// createTimer(Timer10Min, 10, "10min"); // 10 min
+createTimer(Timer1Min, 1, "1min"); // 1 min
+createTimer(Timer3Min, 3, "3min"); // 3 min
+createTimer(Timer5Min, 5, "5min"); // 5 min
+createTimer(Timer10Min, 10, "10min"); // 10 min
 
-// createTimer1(Timer1Min, 1, "1min"); // 1 min
-// createTimer1(Timer3Min, 3, "3min"); // 3 min
-// createTimer1(Timer5Min, 5, "5min"); // 5 min
-// createTimer1(Timer10Min, 10, "10min"); // 10 min
+createTimer1(Timer1Min, 1, "1min"); // 1 min
+createTimer1(Timer3Min, 3, "3min"); // 3 min
+createTimer1(Timer5Min, 5, "5min"); // 5 min
+createTimer1(Timer10Min, 10, "10min"); // 10 min
 
 createTimer2(Timer1Min, 1, "1min"); // 1 min
 createTimer2(Timer3Min, 3, "3min"); // 3 min

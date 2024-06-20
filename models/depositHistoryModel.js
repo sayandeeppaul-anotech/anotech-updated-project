@@ -5,7 +5,7 @@ const depositHistorySchema = new mongoose.Schema({
     uid: { type: String, required: true },
     depositAmount: { type: Number, required: true },
     depositDate: { type: Date, required: true },
-    depositStatus: { type: String, required: true },
+    depositStatus: { type: String, required: true},
     depositId: { type: String, required: true },
     depositMethod: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }

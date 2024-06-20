@@ -2,6 +2,7 @@ const Withdraw = require("../models/withdrawModel");
 const User = require("../models/userModel");
 const Bet = require("../models/betsModel");
 const DepositHistory = require("../models/depositHistoryModel");
+const WithdrawLimit = require("../models/withdrawLimitsModel");
 
 const requestWithdraw = async (req, res) => {
   try {
@@ -20,95 +21,90 @@ const requestWithdraw = async (req, res) => {
       });
     }
 
-    if (balance <= 300) {
+    // Fetch user deposit history
+    const depositHistory = await DepositHistory.find({ userId: userId, depositStatus: "completed" });
+    if (!depositHistory || depositHistory.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Minimum withdraw amount is 300",
+        message: "You have no completed deposits to withdraw from."
       });
     }
 
-    // Get today's deposits
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Calculate total deposited amount
+    const totalDeposited = depositHistory.reduce((total, deposit) => total + deposit.depositAmount, 0);
 
-    const todaysDeposits = await DepositHistory.aggregate([
-      {
-        $match: {
-          userId: userId,
-          depositStatus: 'Completed',
-          createdAt: { $gte: today, $lt: tomorrow }
-        }
+    // Fetch total bet amount (including tax deductions)
+    const totalBetAggregate = await Bet.aggregate([
+      { 
+        $match: { userId: userId } 
       },
       {
         $group: {
           _id: null,
-          total: { $sum: "$depositAmount" }
+          totalBet: { 
+            $sum: { 
+              $subtract: [
+                "$totalBet", 
+                { $multiply: ["$totalBet", "$tax"] } // Subtracting tax from totalBet
+              ]
+            }
+          }
         }
-      },
+      }
     ]);
 
-    const todaysTotalDeposit = todaysDeposits.length ? todaysDeposits[0].total : 0;
-
-    // Calculate total bet amount for today
-    const todaysBets = await Bet.aggregate([
-      {
-        $match: {
-          userId: userId,
-          createdAt: { $gte: today, $lt: tomorrow }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$betAmount" }
-        }
-      },
-    ]);
-
-    const todaysTotalBet = todaysBets.length ? todaysBets[0].total : 0;
-
-    if (todaysTotalBet < todaysTotalDeposit) {
+    const totalBetAmount = totalBetAggregate.length > 0 ? totalBetAggregate[0].totalBet : 0;
+console.log('------->',totalBetAmount)
+    // Check if total bet amount >= total deposited amount
+    if (totalBetAmount < totalDeposited) {
       return res.status(400).json({
         success: false,
-        message: "You must use all of today's deposit for betting before making a withdrawal request.",
+        message: "You must use all of your deposited money for betting before making a withdrawal request.",
       });
     }
 
-    // Calculate total bet amount
-    const totalBetAmountResult = await Bet.aggregate([
-      { $match: { userId: userId } },
-      { $group: { _id: null, total: { $sum: "$betAmount" } } },
-    ]);
-
-    const totalBetAmount = totalBetAmountResult.length ? totalBetAmountResult[0].total : 0;
-
-    // Calculate total deposit amount
-    const totalDepositAmountResult = await DepositHistory.aggregate([
-      {
-        $match: {
-          userId: userId,
-          depositStatus: 'Completed'
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$depositAmount" }
-        }
-      },
-    ]);
-
-    const totalDepositAmount = totalDepositAmountResult.length ? totalDepositAmountResult[0].total : 0;
-
-    if (totalDepositAmount > totalBetAmount) {
+    // Additional checks: Minimum withdrawal amount and withdrawal frequency
+    if (balance < 110 || balance > 100000) {
       return res.status(400).json({
         success: false,
-        message: "You can't withdraw because your total deposit amount is greater than your total bet amount",
+        message: "Withdrawal amount must be between 110 and 100,000 rupees",
       });
     }
 
+    // Check if user has exceeded the daily withdrawal limit
+    const currentDate = new Date();
+    const startOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const endOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59);
+
+    const withdrawalLimit = await WithdrawLimit.findOneAndUpdate(
+      { userId: userId },
+      { $inc: { withdrawCount: 1 } },
+      { upsert: true, new: true }
+    );
+
+    if (withdrawalLimit.withdrawCount > 3) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot request withdrawals more than 3 times in a day",
+      });
+    }
+
+    // Check if current time is within the allowed withdrawal period (10 am to 7 pm)
+    const currentHour = currentDate.getHours();
+    const startTime = Number(withdrawalLimit.withdrawalTime.start.split(':')[0]);
+    const endTime = Number(withdrawalLimit.withdrawalTime.end.split(':')[0]);
+    if (currentHour < startTime || currentHour >= endTime) {
+      return res.status(400).json({
+        success: false,
+        message: `Withdrawals are only allowed between ${withdrawalLimit.withdrawalTime.start} and ${withdrawalLimit.withdrawalTime.end}`,
+      });
+    }
+
+    // Update remaining deposit amount user needs to play with
+    withdrawalLimit.remainingDepositAmount = totalDeposited - totalBetAmount;
+    await withdrawalLimit.save();
+
+    // Create a withdrawal request
     const withdrawRequest = new Withdraw({
       balance: balance,
       withdrawMethod: req.body.withdrawMethod,
