@@ -3,6 +3,7 @@ const User = require("../models/userModel");
 const Bet = require("../models/betsModel");
 const DepositHistory = require("../models/depositHistoryModel");
 const WithdrawLimit = require("../models/withdrawLimitsModel");
+const moment = require('moment');
 
 const requestWithdraw = async (req, res) => {
   try {
@@ -43,10 +44,10 @@ const requestWithdraw = async (req, res) => {
           _id: null,
           totalBet: { 
             $sum: { 
-              $subtract: [
+              $add: [
                 "$totalBet", 
-                { $multiply: ["$totalBet", "$tax"] } // Subtracting tax from totalBet
-              ]
+                { $multiply: ["$totalBet", "$tax"] } // Adding tax to totalBet
+              ] 
             }
           }
         }
@@ -54,8 +55,8 @@ const requestWithdraw = async (req, res) => {
     ]);
 
     const totalBetAmount = totalBetAggregate.length > 0 ? totalBetAggregate[0].totalBet : 0;
-console.log('------->',totalBetAmount)
-    // Check if total bet amount >= total deposited amount
+
+    // Check if total bet amount (including tax) >= total deposited amount
     if (totalBetAmount < totalDeposited) {
       return res.status(400).json({
         success: false,
@@ -63,11 +64,32 @@ console.log('------->',totalBetAmount)
       });
     }
 
-    // Additional checks: Minimum withdrawal amount and withdrawal frequency
-    if (balance < 110 || balance > 100000) {
+    // Fetch withdrawal limits or create default values if not found
+    let withdrawalLimitDoc = await WithdrawLimit.findOne();
+
+    if (!withdrawalLimitDoc) {
+      withdrawalLimitDoc = new WithdrawLimit({
+        withdrawCount: 3, // Default daily withdrawal count
+        withdrawalTime: {
+          start: '10:00 AM', // Default withdrawal start time
+          end: '07:00 PM',   // Default withdrawal end time
+        },
+        withdrawalLimit: {
+          lowerLimit: 110,   // Default lower withdrawal limit
+          upperLimit: 100000 // Default upper withdrawal limit
+        }
+      });
+    }
+
+    // Additional checks based on withdrawal limits
+    const lowerLimit = withdrawalLimitDoc.withdrawalLimit.lowerLimit;
+    const upperLimit = withdrawalLimitDoc.withdrawalLimit.upperLimit;
+
+    // Adjusted line to compare withdrawal amount with limits
+    if (balance < lowerLimit || balance > upperLimit) {
       return res.status(400).json({
         success: false,
-        message: "Withdrawal amount must be between 110 and 100,000 rupees",
+        message: `Withdrawal amount must be between ${lowerLimit} and ${upperLimit} rupees`,
       });
     }
 
@@ -76,33 +98,36 @@ console.log('------->',totalBetAmount)
     const startOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
     const endOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59);
 
-    const withdrawalLimit = await WithdrawLimit.findOneAndUpdate(
-      { userId: userId },
-      { $inc: { withdrawCount: 1 } },
-      { upsert: true, new: true }
-    );
+    const todayWithdrawals = await Withdraw.countDocuments({
+      userId: req.user._id,
+      createdAt: { $gte: startOfDay, $lt: endOfDay },
+    });
 
-    if (withdrawalLimit.withdrawCount > 3) {
+    if (todayWithdrawals >= withdrawalLimitDoc.withdrawCount) {
       return res.status(400).json({
         success: false,
-        message: "You cannot request withdrawals more than 3 times in a day",
+        message: `You cannot request withdrawals more than ${withdrawalLimitDoc.withdrawCount} times in a day`,
       });
     }
 
-    // Check if current time is within the allowed withdrawal period (10 am to 7 pm)
-    const currentHour = currentDate.getHours();
-    const startTime = Number(withdrawalLimit.withdrawalTime.start.split(':')[0]);
-    const endTime = Number(withdrawalLimit.withdrawalTime.end.split(':')[0]);
-    if (currentHour < startTime || currentHour >= endTime) {
+    // Check if current time is within the allowed withdrawal period
+    const currentTime = moment();
+    const startTime = moment(withdrawalLimitDoc.withdrawalTime.start, 'hh:mm A');
+    const endTime = moment(withdrawalLimitDoc.withdrawalTime.end, 'hh:mm A');
+
+    if (!currentTime.isBetween(startTime, endTime)) {
       return res.status(400).json({
         success: false,
-        message: `Withdrawals are only allowed between ${withdrawalLimit.withdrawalTime.start} and ${withdrawalLimit.withdrawalTime.end}`,
+        message: `Withdrawals are only allowed between ${withdrawalLimitDoc.withdrawalTime.start} and ${withdrawalLimitDoc.withdrawalTime.end}`,
       });
     }
 
     // Update remaining deposit amount user needs to play with
-    withdrawalLimit.remainingDepositAmount = totalDeposited - totalBetAmount;
-    await withdrawalLimit.save();
+    const remainingDepositAmount = Math.max(totalDeposited - totalBetAmount, 0);
+
+    // Update withdrawal limit document with remaining deposit amount
+    withdrawalLimitDoc.remainingDepositAmount = remainingDepositAmount;
+    await withdrawalLimitDoc.save();
 
     // Create a withdrawal request
     const withdrawRequest = new Withdraw({
@@ -114,12 +139,14 @@ console.log('------->',totalBetAmount)
 
     const savedRequest = await withdrawRequest.save();
 
+    // Update user's withdraw records
     await User.findByIdAndUpdate(
       userId,
       { $push: { withdrawRecords: savedRequest._id } },
       { new: true }
     );
 
+    // Update withdraw records for all admin users
     await User.updateMany(
       { accountType: "Admin" },
       { $push: { withdrawRecords: savedRequest._id } }

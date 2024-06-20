@@ -32,7 +32,9 @@ const TrxResultRoute = require('../routes/Trx/TrxResultRoute')
 const Userbalancemanage = require('./Admin/UserBalanceManage')
 const K3betgame = require('../K3Resut/K3BetRoute')
 const k3bethistory = require('../K3Resut/K3betHistory')
-
+const withdrawalLimit = require('../controllers/WithdrawlLimits')
+const withdrawalLimitChange = require('../controllers/WithdrawlLimits')
+const withdrawalLimitget = require('../controllers/WithdrawlLimits')
 router.use('/', registerRoute);
 router.use('/', loginRoute);
 router.use('/', logoutRoute);
@@ -63,5 +65,8 @@ router.use('/',k3result)
 router.use('/',TrxResultRoute)
 router.use('/',K3betgame)
 router.use('/',k3bethistory)
+router.use('/',withdrawalLimit)
+router.use('/',withdrawalLimitChange)
+router.use('/',withdrawalLimitget)
 
 module.exports = router;
