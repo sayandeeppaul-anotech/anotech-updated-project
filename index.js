@@ -26,8 +26,7 @@ setupWebSocket(server);
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: '*', 
-  allowedHeaders:["Content-Type","Authorization"],
+  origin: ['http://localhost:3001', 'http://localhost:3002'], 
   credentials: true
 }));
 
