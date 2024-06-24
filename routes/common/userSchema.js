@@ -15,22 +15,31 @@ const Withdraw = require("../../models/withdrawModel");
 
 
 router.get('/user', auth, async (req, res) => {
-    const userId = req.user._id;
-    if (!userId) {
-      return res.status(400).send({ message: 'No user ID in cookies' });
-    }
+  const userId = req.user._id;
+
+  if (!userId) {
+    return res.status(400).send({ message: 'No user ID in cookies' });
+  }
+
+  let token = req.cookies.token;
   
-    try {
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).send({ message: 'User not found' });
-      }
-  
-      res.send(user);
-    } catch (error) {
-      res.status(500).send({ message: 'Server error' });
+  if (!token) {
+      return res.status(400).send({ message: 'No token provided' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
     }
-  });
+
+    res.send({ user, token });
+  } catch (error) {
+    res.status(500).send({ message: 'Server error' });
+  }
+});
+
+
 
 
   router.get('/fetchuserdetails',auth,isAdmin,async(req,res)=>{
