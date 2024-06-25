@@ -41,7 +41,7 @@ router.put('/withdraw-limit-change', auth,isAdmin, async (req, res) => {
       const updatedWithdrawLimits = await WithdrawLimit.updateMany(
           {},
           {
-              $set: {
+              $set: {        
                   withdrawCount,
                   lastWithdrawalDate,
                   withdrawalTime,

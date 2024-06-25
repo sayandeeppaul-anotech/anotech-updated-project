@@ -4,8 +4,7 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 require("dotenv").config();
-const session = require('express-session');
-const MongoStore = require('connect-mongo'); // Added dependency for MongoStore
+
 // const logger = require("./middlewares/logger");
 const db = require("./db");
 const { setupWebSocket } = require("./websockets/websocket");
@@ -27,24 +26,27 @@ setupWebSocket(server);
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: ['http://localhost:3001', 'http://localhost:3002','https://backend-link-anotech-10.onrender.com'], 
+  origin: ['http://localhost:3001', 'http://localhost:3002'], 
   credentials: true
-}));
-app.use(session({
-  secret: process.env.SESSION_SECRET || '5ac3607ba4032505d5391bffb1045766a3a943dc20210eaecea113070c76b218c269a399a6beb900ab2ff0c60bc71e1bfe7d25fd357989561e95ce7f9a7c9f3a',
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
-  cookie: {
-    maxAge: 1000 * 60 * 60 * 24, // 24 hours
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
-  }
 }));
 
 // Static file serving
 app.use(express.static(path.join(__dirname, 'build')));
 app.use('/admin', express.static(path.join(__dirname, 'admin/build')));
+
+// CORS headers setup
+// app.use((req, res, next) => {
+//   const allowedOrigins = ['http://localhost:3001', 'http://localhost:3002'];
+//   const origin = req.headers.origin;
+//   if (allowedOrigins.includes(origin)) {
+//     res.header('Access-Control-Allow-Origin', origin);
+//   }
+//   res.header('Access-Control-Allow-Credentials', 'true');
+//   next();
+// });
+
+// Logger middleware
+// app.use(logger);
 
 // Routes
 app.use(routes);

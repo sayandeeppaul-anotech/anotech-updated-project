@@ -10,32 +10,38 @@ const DepositHistory = require("../../models/depositHistoryModel");
 const Bet = require("../../models/betsModel");
 const Withdraw = require("../../models/withdrawModel");
 
-
-
-
-
 router.get('/user', auth, async (req, res) => {
   const userId = req.user._id;
 
   if (!userId) {
-    return res.status(400).send({ message: 'No user ID in cookies' });
+      return res.status(400).json({ msg: 'No user ID in session' });
   }
 
-  let token = req.cookies.token;
+  // Retrieve the token from cookies
+  let token = req.cookies.token; 
   
   if (!token) {
-      return res.status(400).send({ message: 'No token provided' });
+      return res.status(400).json({ msg: 'No token provided in cookies' });
   }
 
   try {
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).send({ message: 'User not found' });
-    }
+      // Fetch the user from the database
+      const user = await User.findById(userId);
 
-    res.send({ user, token });
+      if (!user) {
+          return res.status(404).json({ msg: 'User not found' });
+      }
+
+      // Assign and save the token to the user document
+      user.token = token;
+      await user.save();
+
+      console.log('---->', token);
+
+      res.json({ user, token });
   } catch (error) {
-    res.status(500).send({ message: 'Server error' });
+      console.error(error);
+      res.status(500).json({ msg: 'Server error' });
   }
 });
 

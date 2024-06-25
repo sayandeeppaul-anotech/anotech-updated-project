@@ -35,6 +35,13 @@ const k3bethistory = require('../K3Resut/K3betHistory')
 const withdrawalLimit = require('../controllers/WithdrawlLimits')
 const withdrawalLimitChange = require('../controllers/WithdrawlLimits')
 const withdrawalLimitget = require('../controllers/WithdrawlLimits')
+
+
+const thirdPartyWallet = require('./wallet/ThirdpartyWallet')
+const getamount = require('./wallet/ThirdpartyWallet')
+const addgamemoney = require('./wallet/ThirdpartyWallet')
+
+
 router.use('/', registerRoute);
 router.use('/', loginRoute);
 router.use('/', logoutRoute);
@@ -68,5 +75,8 @@ router.use('/',k3bethistory)
 router.use('/',withdrawalLimit)
 router.use('/',withdrawalLimitChange)
 router.use('/',withdrawalLimitget)
+router.use('/',thirdPartyWallet)
+router.use('/',getamount)
+router.use('/',addgamemoney)
 
 module.exports = router;
