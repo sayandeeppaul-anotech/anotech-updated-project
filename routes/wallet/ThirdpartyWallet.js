@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../../models/userModel');
-const ThirdPartyWallet = require('../../models/thirdPartyWallet');
+const ThirdPartyWallet = require('../../models/thirdpartyWallet');
 const auth = require('../../middlewares/auth');
 
 // Route to add game winning amount to third-party wallet
