@@ -17,7 +17,7 @@ async function getLatestPeriodId(timer) {
     "5min": Timer5Min,
     "10min": Timer10Min,
   };
-  
+
   const timerModel = timerModels[timer];
   const latestTimer = await timerModel.find().sort({ _id: -1 }).limit(1);
   return latestTimer[0].periodId;
@@ -36,10 +36,6 @@ const createTimer = (TimerModel, interval, timerName) => {
       const sizeBetSums = { big: 0, small: 0 };
       const colorBetSums = { green: 0, red: 0, violet: 0 };
 
-
-  
-
-      
       bets.forEach((bet) => {
         if (/^[0-9]$/.test(bet.selectedItem)) {
           numberBetSums[parseInt(bet.selectedItem)].totalBet += bet.totalBet;
@@ -57,7 +53,6 @@ const createTimer = (TimerModel, interval, timerName) => {
           return Object.keys(betSums).reduce((min, item) => (betSums[item] < betSums[min] ? item : min));
         }
       };
-     
 
       let colorOutcome = null;
       let numberOutcome = null;
@@ -68,43 +63,49 @@ const createTimer = (TimerModel, interval, timerName) => {
         let sizes = ["big", "small"];
         colorOutcome = colors[Math.floor(Math.random() * colors.length)];
         sizeOutcome = sizes[Math.floor(Math.random() * sizes.length)];
-      }else{
-        console.log("-----> called")
-       colorOutcome = getLeastBetSum(colorBetSums);
-       sizeOutcome = getLeastBetSum(sizeBetSums); 
-       numberOutcome = getLeastBetSum(numberBetSums);
+      } else {
+        colorOutcome = getLeastBetSum(colorBetSums);
+        sizeOutcome = getLeastBetSum(sizeBetSums);
+        numberOutcome = getLeastBetSum(numberBetSums);
       }
 
+      // Determine the number outcome
+
+      // Determine the number outcome based on color and size outcomes
       if (colorOutcome === "red" && sizeOutcome === "big") {
         let outcomes = [6, 8];
-       numberOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
-    } else if (colorOutcome === "green" && sizeOutcome === "small") {
-       let outcomes = [1, 3];
         numberOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
-    } else if (colorOutcome === "violet" && sizeOutcome === "small") {
-        numberOutcome = "0";
-    } else if (colorOutcome === "violet" && sizeOutcome === "big") {
-        numberOutcome = "5";
-    } else if (colorOutcome === "red" && sizeOutcome === "small") {
-       let outcomes = [2, 4, 0];
+      } else if (colorOutcome === "red" && sizeOutcome === "small") {
+        let outcomes = [2, 4, 0];
         numberOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
-    } else if (colorOutcome === "green" && sizeOutcome === "small") {
-        let outcomes = [1, 3];
-        numberOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
-    } else if (colorOutcome === "violet" && sizeOutcome === "small") {
-        numberOutcome = "0";
-    } else if (colorOutcome === "green" && sizeOutcome === "big") {
+      } else if (colorOutcome === "green" && sizeOutcome === "big") {
         let outcomes = [7, 9, 5];
         numberOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
-    }
-    
-     if (numberOutcome === "0") {
-        colorOutcome = ["violet", "red"];
-      }else if (numberOutcome === "5") {
-        colorOutcome = ["violet", "green"];
+      } else if (colorOutcome === "green" && sizeOutcome === "small") {
+        let outcomes = [1, 3];
+        numberOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
+      } else if (colorOutcome === "violet" && sizeOutcome === "small") {
+        numberOutcome = "0";
+      } else if (colorOutcome === "violet" && sizeOutcome === "big") {
+        numberOutcome = "5";
       }
-  
-    
+      
+      // Hardcoded mapping of number to color
+      const numberColorMap = {
+        "0": ["violet", "red"],
+        "1": "green",
+        "2": "red",
+        "3": "green",
+        "4": "red",
+        "5": ["violet", "green"],
+        "6": "red",
+        "7": "green",
+        "8": "red",
+        "9": "green",
+      };
+
+      colorOutcome = numberColorMap[numberOutcome];
+
       console.log("colorOutcome", colorOutcome);
       console.log("numberOutcome", numberOutcome);
       console.log("sizeOutcome", sizeOutcome);
@@ -117,6 +118,8 @@ const createTimer = (TimerModel, interval, timerName) => {
         sizeOutcome,
       });
 
+      console.log(`Wingo Timer ${timerName} & ${periodId} ended.`);
+      
       if (bets.length > 0) {
         const processBetResults = async (bet) => {
           let winLoss = 0;
@@ -125,7 +128,9 @@ const createTimer = (TimerModel, interval, timerName) => {
 
           if (bet.selectedItem === numberOutcome) {
             winLoss = bet.totalBet * 9;
-          } else if (colorOutcome.includes(bet.selectedItem)) {
+          } else if (Array.isArray(colorOutcome) && colorOutcome.includes(bet.selectedItem)) {
+            winLoss = bet.totalBet * 2;
+          } else if (colorOutcome === bet.selectedItem) {
             winLoss = bet.totalBet * 2;
           } else if (bet.selectedItem === sizeOutcome) {
             winLoss = bet.totalBet * 2;
@@ -148,6 +153,7 @@ const createTimer = (TimerModel, interval, timerName) => {
         await Promise.all(bets.filter((bet) => bet.selectedTimer === timerName).map(processBetResults));
       }
     }, interval * 60 * 1000);
+    console.log(`Wingo Timer ${timerName} & ${periodId} started.`);
   };
 
   jobFunction();
@@ -155,7 +161,7 @@ const createTimer = (TimerModel, interval, timerName) => {
 };
 
 const calculateRemainingTime = (periodId, minutes) => {
-  const endTime = moment(periodId, "YYYY-MM-DD-HH-mm-ss").add(minutes, "minutes");
+  const endTime = moment(periodId, "YYYYMMDDHHmmss").add(minutes, "minutes");
   const now = moment();
   const diff = endTime.diff(now, "seconds");
   return diff > 0 ? diff : 0;
