@@ -57,10 +57,17 @@ const createTimer2 = (TimerModel, interval, timerName) => {
       let leastBetAmountThreeDifferentNumbers = Infinity;
 
       let betAmountsTotalSum = {};
+      let totalBets = {
+        totalSum: 0,
+        twoSameOneDifferent: 0,
+        threeSame: 0,
+        threeDifferentNumbers: 0
+      };
 
-      // Collect bet amounts for each possible outcome (3 to 18)
+      // Collect bet amounts for each possible outcome
       userBets.forEach((bet) => {
         if (bet.selectedItem === "totalSum") {
+          totalBets.totalSum += bet.betAmount;
           if (!betAmountsTotalSum[bet.totalSum]) {
             betAmountsTotalSum[bet.totalSum] = 0;
           }
@@ -72,59 +79,70 @@ const createTimer2 = (TimerModel, interval, timerName) => {
           }
         }
 
-        if (
-          bet.selectedItem === "twoSameOneDifferent" &&
-          bet.betAmount < leastBetAmountTwoSameOneDifferent
-        ) {
-          leastBetAmountTwoSameOneDifferent = bet.betAmount;
-          leastBetUserTwoSameOneDifferent = bet;
+        if (bet.selectedItem === "twoSameOneDifferent") {
+          totalBets.twoSameOneDifferent += bet.betAmount;
+          if (bet.betAmount < leastBetAmountTwoSameOneDifferent) {
+            leastBetAmountTwoSameOneDifferent = bet.betAmount;
+            leastBetUserTwoSameOneDifferent = bet;
+          }
         }
-        if (
-          bet.selectedItem === "threeSame" &&
-          bet.betAmount < leastBetAmountThreeSame
-        ) {
-          leastBetAmountThreeSame = bet.betAmount;
-          leastBetUserThreeSame = bet;
+
+        if (bet.selectedItem === "threeSame") {
+          totalBets.threeSame += bet.betAmount;
+          if (bet.betAmount < leastBetAmountThreeSame) {
+            leastBetAmountThreeSame = bet.betAmount;
+            leastBetUserThreeSame = bet;
+          }
         }
-        if (
-          bet.selectedItem === "threeDifferentNumbers" &&
-          bet.betAmount < leastBetAmountThreeDifferentNumbers
-        ) {
-          leastBetAmountThreeDifferentNumbers = bet.betAmount;
-          leastBetUserThreeDifferentNumbers = bet;
+
+        if (bet.selectedItem === "threeDifferentNumbers") {
+          totalBets.threeDifferentNumbers += bet.betAmount;
+          if (bet.betAmount < leastBetAmountThreeDifferentNumbers) {
+            leastBetAmountThreeDifferentNumbers = bet.betAmount;
+            leastBetUserThreeDifferentNumbers = bet;
+          }
         }
       });
 
-      // Check if all numbers from 3 to 18 have been bet on
-      let allNumbersBetOn = true;
-      for (let i = 3; i <= 18; i++) {
-        if (!betAmountsTotalSum[i]) {
-          allNumbersBetOn = false;
-          break;
-        }
-      }
+      // Determine the least betted section
+      let leastBettedSection = Object.keys(totalBets).reduce((a, b) => totalBets[a] < totalBets[b] ? a : b);
 
-      // Determine the winning number
+      // Initialize variables for dice outcomes
       let winningNumberTotalSum;
-      if (allNumbersBetOn) {
-        winningNumberTotalSum = leastBetUserTotalSum ? leastBetUserTotalSum.totalSum : null;
-      } else {
-        // Find a number from 3 to 18 that hasn't been bet on
-        for (let i = 3; i <= 18; i++) {
-          if (!betAmountsTotalSum[i]) {
-            winningNumberTotalSum = i;
-            break;
+      let diceOutcomeD1, diceOutcomeD2, diceOutcomeD3;
+      let diceOutcomeTwoSameOneDifferent;
+      let diceOutcomeThreeSame;
+      let diceOutcomeThreeDifferentNumbers;
+
+      // Map the outcome to the least betted section
+      switch (leastBettedSection) {
+        case 'totalSum':
+          if (leastBetUserTotalSum) {
+            winningNumberTotalSum = leastBetUserTotalSum.totalSum;
           }
-        }
+          break;
+        case 'twoSameOneDifferent':
+          if (leastBetUserTwoSameOneDifferent) {
+            const twoSameOneDifferentValue = leastBetUserTwoSameOneDifferent.twoSameOneDifferent;
+            diceOutcomeTwoSameOneDifferent = twoSameOneDifferentValue.filter((value, index, self) => self.indexOf(value) === index);
+          }
+          break;
+        case 'threeSame':
+          if (leastBetUserThreeSame) {
+            const threeSameValue = leastBetUserThreeSame.threeSame;
+            diceOutcomeThreeSame = [threeSameValue, threeSameValue, threeSameValue];
+          }
+          break;
+        case 'threeDifferentNumbers':
+          if (leastBetUserThreeDifferentNumbers) {
+            const threeDifferentNumbersValue = leastBetUserThreeDifferentNumbers.threeDifferentNumbers.map(Number);
+            diceOutcomeThreeDifferentNumbers = threeDifferentNumbersValue;
+          }
+          break;
       }
 
-      // Generate dice outcomes that match the winning number
-      let diceOutcomeD1, diceOutcomeD2, diceOutcomeD3;
-      if (
-        winningNumberTotalSum !== null &&
-        winningNumberTotalSum >= 3 &&
-        winningNumberTotalSum <= 18
-      ) {
+      if (winningNumberTotalSum) {
+        // Generate dice outcomes that match the winning number
         const possibleOutcomes = [];
         for (let i = 1; i <= 6; i++) {
           for (let j = 1; j <= 6; j++) {
@@ -137,34 +155,25 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         }
         const randomIndex = Math.floor(Math.random() * possibleOutcomes.length);
         [diceOutcomeD1, diceOutcomeD2, diceOutcomeD3] = possibleOutcomes[randomIndex];
+      } else if (diceOutcomeTwoSameOneDifferent) {
+        // Generate outcomes for twoSameOneDifferent
+        diceOutcomeD1 = diceOutcomeTwoSameOneDifferent[0];
+        diceOutcomeD2 = diceOutcomeTwoSameOneDifferent[0];
+        diceOutcomeD3 = diceOutcomeTwoSameOneDifferent[1];
+      } else if (diceOutcomeThreeSame) {
+        // Generate outcomes for threeSame
+        diceOutcomeD1 = diceOutcomeThreeSame[0];
+        diceOutcomeD2 = diceOutcomeThreeSame[0];
+        diceOutcomeD3 = diceOutcomeThreeSame[0];
+      } else if (diceOutcomeThreeDifferentNumbers) {
+        // Generate outcomes for threeDifferentNumbers
+        [diceOutcomeD1, diceOutcomeD2, diceOutcomeD3] = diceOutcomeThreeDifferentNumbers;
       } else {
         // Handle the case when there are no user bets or winning number is outside the range
         diceOutcomeD1 = Math.floor(Math.random() * 6) + 1;
         diceOutcomeD2 = Math.floor(Math.random() * 6) + 1;
         diceOutcomeD3 = Math.floor(Math.random() * 6) + 1;
-      }
-
-      // Generate dice outcomes for twoSameOneDifferent
-      let diceOutcomeTwoSameOneDifferent;
-      if (leastBetUserTwoSameOneDifferent) {
-        const twoSameOneDifferentValue = leastBetUserTwoSameOneDifferent.twoSameOneDifferent;
-        diceOutcomeTwoSameOneDifferent = twoSameOneDifferentValue.filter(
-          (value, index, self) => self.indexOf(value) === index
-        ); // Get unique values from the array
-      }
-
-      // Generate dice outcomes for threeSame
-      let diceOutcomeThreeSame;
-      if (leastBetUserThreeSame) {
-        const threeSameValue = leastBetUserThreeSame.threeSame;
-        diceOutcomeThreeSame = [threeSameValue, threeSameValue, threeSameValue];
-      }
-
-      // Generate dice outcomes for threeDifferentNumbers
-      let diceOutcomeThreeDifferentNumbers;
-      if (leastBetUserThreeDifferentNumbers) {
-        const threeDifferentNumbersValue = leastBetUserThreeDifferentNumbers.threeDifferentNumbers.map(Number);
-        diceOutcomeThreeDifferentNumbers = threeDifferentNumbersValue;
+        winningNumberTotalSum = diceOutcomeD1 + diceOutcomeD2 + diceOutcomeD3;
       }
 
       // Save dice outcomes in the ResultK3 model
@@ -172,10 +181,7 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         timerName: timerName,
         periodId: periodId,
         totalSum: winningNumberTotalSum,
-        size:
-          winningNumberTotalSum >= 3 && winningNumberTotalSum <= 10
-            ? "Small"
-            : "Big",
+        size: winningNumberTotalSum >= 3 && winningNumberTotalSum <= 10 ? "Small" : "Big",
         parity: winningNumberTotalSum % 2 === 0 ? "Even" : "Odd",
         diceOutcome: [diceOutcomeD1, diceOutcomeD2, diceOutcomeD3],
         twoSameOneDifferent: diceOutcomeTwoSameOneDifferent,
@@ -196,39 +202,27 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         let winAmount = 0;
 
         // Check if user's bet matches the winning number
-        if (
-          bet.selectedItem === "totalSum" &&
-          bet.totalSum === winningNumberTotalSum
-        ) {
+        if (bet.selectedItem === "totalSum" && bet.totalSum === winningNumberTotalSum) {
           userWon = true;
           winAmount = bet.betAmount * bet.multiplier;
         }
 
         // Check if user's bet matches the twoSameOneDifferent outcome
-        if (
-          bet.selectedItem === "twoSameOneDifferent" &&
-          diceOutcomeTwoSameOneDifferent
-        ) {
-          const twoSameOneDifferentValue = bet.twoSameOneDifferent.map(Number);
+        if (bet.selectedItem === "twoSameOneDifferent" && diceOutcomeTwoSameOneDifferent) {
+          const twoSameOneDifferentValue = bet.twoSameOneDifferent;
           if (
-            (diceOutcomeTwoSameOneDifferent[0] ===
-              twoSameOneDifferentValue[0] &&
-              diceOutcomeTwoSameOneDifferent[1] ===
-                twoSameOneDifferentValue[0] &&
-              diceOutcomeTwoSameOneDifferent[2] ===
-                twoSameOneDifferentValue[1]) ||
-            (diceOutcomeTwoSameOneDifferent[0] ===
-              twoSameOneDifferentValue[0] &&
-              diceOutcomeTwoSameOneDifferent[1] ===
-                twoSameOneDifferentValue[1] &&
-              diceOutcomeTwoSameOneDifferent[2] ===
-                twoSameOneDifferentValue[0]) ||
-            (diceOutcomeTwoSameOneDifferent[0] ===
-              twoSameOneDifferentValue[1] &&
-              diceOutcomeTwoSameOneDifferent[1] ===
-                twoSameOneDifferentValue[0] &&
-              diceOutcomeTwoSameOneDifferent[2] ===
-                twoSameOneDifferentValue[0])
+            (diceOutcomeTwoSameOneDifferent[0] === twoSameOneDifferentValue[0] &&
+              diceOutcomeTwoSameOneDifferent[1] === twoSameOneDifferentValue[0] &&
+              diceOutcomeTwoSameOneDifferent[2] === twoSameOneDifferentValue[1]) ||
+            (diceOutcomeTwoSameOneDifferent[0] === twoSameOneDifferentValue[1] &&
+              diceOutcomeTwoSameOneDifferent[1] === twoSameOneDifferentValue[0] &&
+              diceOutcomeTwoSameOneDifferent[2] === twoSameOneDifferentValue[0]) ||
+            (diceOutcomeTwoSameOneDifferent[0] === twoSameOneDifferentValue[0] &&
+              diceOutcomeTwoSameOneDifferent[1] === twoSameOneDifferentValue[1] &&
+              diceOutcomeTwoSameOneDifferent[2] === twoSameOneDifferentValue[0]) ||
+            (diceOutcomeTwoSameOneDifferent[0] === twoSameOneDifferentValue[1] &&
+              diceOutcomeTwoSameOneDifferent[1] === twoSameOneDifferentValue[0] &&
+              diceOutcomeTwoSameOneDifferent[2] === twoSameOneDifferentValue[0])
           ) {
             userWon = true;
             winAmount = bet.betAmount * bet.multiplier;
@@ -249,10 +243,7 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         }
 
         // Check if user's bet matches the threeDifferentNumbers outcome
-        if (
-          bet.selectedItem === "threeDifferentNumbers" &&
-          diceOutcomeThreeDifferentNumbers
-        ) {
+        if (bet.selectedItem === "threeDifferentNumbers" && diceOutcomeThreeDifferentNumbers) {
           const threeDifferentNumbersValue = bet.threeDifferentNumbers.map(Number);
           if (
             threeDifferentNumbersValue.includes(diceOutcomeThreeDifferentNumbers[0]) &&

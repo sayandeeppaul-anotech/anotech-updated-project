@@ -6,6 +6,7 @@ const K3betSchema = mongoose.Schema({
         ref: 'User',
     },
     betAmount: Number,
+    selectedTimer: String,
     selectedItem: String,
     multiplier: Number,
     totalBet: Number,
