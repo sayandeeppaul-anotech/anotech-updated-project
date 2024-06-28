@@ -24,7 +24,7 @@ router.post("/K3betgame", auth, async (req, res) => {
       user: req.user._id,
       betAmount: req.body.betAmount,
       selectedItem: req.body.selectedItem,
-      timerName: req.body.timerName,
+      selectedTimer:req.body.selectedTimer,
       multiplier: req.body.multiplier,
       totalBet: totalBetAfterTax,
       tax: req.body.totalBet - totalBetAfterTax,

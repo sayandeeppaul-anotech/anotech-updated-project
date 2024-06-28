@@ -6,17 +6,18 @@ const K3betSchema = mongoose.Schema({
         ref: 'User',
     },
     betAmount: Number,
-    selectedTimer: String,
     selectedItem: String,
     multiplier: Number,
-    totalBet: Number,
     tax: Number,
     fee: { type: String, default: '2%'},
-    periodId: String,
+    selectedTimer: String,
+    periodId: Number,
     timestamp: { type: Date, default: Date.now },
-     diceOutcomeD1: Number,
-     diceOutcomeD2: Number,
-     diceOutcomeD3: Number,
+    diceOutcome: {
+        type: [Number],
+        validate: [arrayLimit, '{PATH} exceeds the limit of 3'],
+        required: true,
+      },
     status: { type: String, default: 'Loading' },
     winLoss: String,
     totalSum: {type:Number, default:0},
@@ -26,5 +27,8 @@ const K3betSchema = mongoose.Schema({
     threeSame: [{ type:Number , minlength: 3, maxlength: 3 }],
     threeDifferentNumbers: [{ type: Number, minlength: 3, maxlength: 3 }],
 })
+function arrayLimit(val) {
+    return val.length <= 3;
+  }
 const K3bets = mongoose.model('K3bets', K3betSchema)
 module.exports = K3bets;

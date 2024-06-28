@@ -2,10 +2,6 @@ const express = require("express");
 const User = require("../models/userModel");
 const K3Result = require("../models/K3ResultModel");
 const k3betmodel = require("../models/K3betmodel");
-const Timer1Min = require("../models/timersModel");
-const Timer3Min = require("../models/timersModel");
-const Timer5Min = require("../models/timersModel");
-const Timer10Min = require("../models/timersModel");
 const cron = require("node-cron");
 const moment = require("moment");
 
@@ -15,26 +11,16 @@ function secondsToHms2(d) {
   return ("0" + m).slice(-2) + ":" + ("0" + (d % 60)).slice(-2);
 }
 
-async function getLatestPeriodId2(timer) {
-  let timerModel;
-  switch (timer) {
-    case "1min":
-      timerModel = Timer1Min;
-      break;
-    case "3min":
-      timerModel = Timer3Min;
-      break;
-    case "5min":
-      timerModel = Timer5Min;
-      break;
-    case "10min":
-      timerModel = Timer10Min;
-      break;
-    default:
-      throw new Error("Invalid timer specified");
-  }
-  const latestTimer = await timerModel.findOne().sort({ _id: -1 });
-  return latestTimer ? latestTimer.periodId : null;
+async function getLatestPeriodId2(timerName) {
+  const timerModels = {
+    "1min": Timer1Min,
+    "3min": Timer3Min,
+    "5min": Timer5Min,
+    "10min": Timer10Min,
+  };
+  const timerModel = timerModels[timerName];
+  const latestTimer = await timerModel.find().sort({ _id: -1 }).limit(1);
+  return latestTimer[0].periodId;
 }
 
 const createTimer2 = (TimerModel, interval, timerName) => {
@@ -43,20 +29,15 @@ const createTimer2 = (TimerModel, interval, timerName) => {
     const periodId = moment().format("YYYYMMDDHHmmss");
     await TimerModel.create({ periodId });
 
+    // console.log(`K3 Timer ${timerName} & ${periodId} started.`);
+
+    // Schedule result processing after the interval
     setTimeout(async () => {
       const userBets = await k3betmodel.find({ periodId });
 
-      // Initialize variables for least bet amounts
-      let leastBetUserTotalSum = null;
-      let leastBetAmountTotalSum = Infinity;
-      let leastBetUserTwoSameOneDifferent = null;
-      let leastBetAmountTwoSameOneDifferent = Infinity;
-      let leastBetUserThreeSame = null;
-      let leastBetAmountThreeSame = Infinity;
-      let leastBetUserThreeDifferentNumbers = null;
-      let leastBetAmountThreeDifferentNumbers = Infinity;
-
-      let betAmountsTotalSum = {};
+      // Initialize variables for least bet amounts and total bets
+      let leastBetUser = {};
+      let leastBetAmount = Infinity;
       let totalBets = {
         totalSum: 0,
         twoSameOneDifferent: 0,
@@ -64,47 +45,17 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         threeDifferentNumbers: 0
       };
 
-      // Collect bet amounts for each possible outcome
+      // Collect bet amounts and determine least betted section
       userBets.forEach((bet) => {
-        if (bet.selectedItem === "totalSum") {
-          totalBets.totalSum += bet.betAmount;
-          if (!betAmountsTotalSum[bet.totalSum]) {
-            betAmountsTotalSum[bet.totalSum] = 0;
-          }
-          betAmountsTotalSum[bet.totalSum] += bet.betAmount;
+        totalBets[bet.selectedItem] += bet.betAmount;
 
-          if (bet.betAmount < leastBetAmountTotalSum) {
-            leastBetAmountTotalSum = bet.betAmount;
-            leastBetUserTotalSum = bet;
-          }
-        }
-
-        if (bet.selectedItem === "twoSameOneDifferent") {
-          totalBets.twoSameOneDifferent += bet.betAmount;
-          if (bet.betAmount < leastBetAmountTwoSameOneDifferent) {
-            leastBetAmountTwoSameOneDifferent = bet.betAmount;
-            leastBetUserTwoSameOneDifferent = bet;
-          }
-        }
-
-        if (bet.selectedItem === "threeSame") {
-          totalBets.threeSame += bet.betAmount;
-          if (bet.betAmount < leastBetAmountThreeSame) {
-            leastBetAmountThreeSame = bet.betAmount;
-            leastBetUserThreeSame = bet;
-          }
-        }
-
-        if (bet.selectedItem === "threeDifferentNumbers") {
-          totalBets.threeDifferentNumbers += bet.betAmount;
-          if (bet.betAmount < leastBetAmountThreeDifferentNumbers) {
-            leastBetAmountThreeDifferentNumbers = bet.betAmount;
-            leastBetUserThreeDifferentNumbers = bet;
-          }
+        if (bet.betAmount < leastBetAmount) {
+          leastBetAmount = bet.betAmount;
+          leastBetUser[bet.selectedItem] = bet;
         }
       });
 
-      // Determine the least betted section
+      // Determine the least betted section dynamically
       let leastBettedSection = Object.keys(totalBets).reduce((a, b) => totalBets[a] < totalBets[b] ? a : b);
 
       // Initialize variables for dice outcomes
@@ -117,30 +68,31 @@ const createTimer2 = (TimerModel, interval, timerName) => {
       // Map the outcome to the least betted section
       switch (leastBettedSection) {
         case 'totalSum':
-          if (leastBetUserTotalSum) {
-            winningNumberTotalSum = leastBetUserTotalSum.totalSum;
+          if (leastBetUser.totalSum) {
+            winningNumberTotalSum = leastBetUser.totalSum.totalSum;
           }
           break;
         case 'twoSameOneDifferent':
-          if (leastBetUserTwoSameOneDifferent) {
-            const twoSameOneDifferentValue = leastBetUserTwoSameOneDifferent.twoSameOneDifferent;
+          if (leastBetUser.twoSameOneDifferent) {
+            const twoSameOneDifferentValue = leastBetUser.twoSameOneDifferent.twoSameOneDifferent;
             diceOutcomeTwoSameOneDifferent = twoSameOneDifferentValue.filter((value, index, self) => self.indexOf(value) === index);
           }
           break;
         case 'threeSame':
-          if (leastBetUserThreeSame) {
-            const threeSameValue = leastBetUserThreeSame.threeSame;
+          if (leastBetUser.threeSame) {
+            const threeSameValue = leastBetUser.threeSame.threeSame;
             diceOutcomeThreeSame = [threeSameValue, threeSameValue, threeSameValue];
           }
           break;
         case 'threeDifferentNumbers':
-          if (leastBetUserThreeDifferentNumbers) {
-            const threeDifferentNumbersValue = leastBetUserThreeDifferentNumbers.threeDifferentNumbers.map(Number);
+          if (leastBetUser.threeDifferentNumbers) {
+            const threeDifferentNumbersValue = leastBetUser.threeDifferentNumbers.threeDifferentNumbers.map(Number);
             diceOutcomeThreeDifferentNumbers = threeDifferentNumbersValue;
           }
           break;
       }
 
+      // Generate dice outcomes based on the winning number or user bets
       if (winningNumberTotalSum) {
         // Generate dice outcomes that match the winning number
         const possibleOutcomes = [];
@@ -176,7 +128,7 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         winningNumberTotalSum = diceOutcomeD1 + diceOutcomeD2 + diceOutcomeD3;
       }
 
-      // Save dice outcomes in the ResultK3 model
+      // Save dice outcomes in the K3Result model
       const K3Results = new K3Result({
         timerName: timerName,
         periodId: periodId,
@@ -201,10 +153,12 @@ const createTimer2 = (TimerModel, interval, timerName) => {
         let userWon = false;
         let winAmount = 0;
 
-        // Check if user's bet matches the winning number
-        if (bet.selectedItem === "totalSum" && bet.totalSum === winningNumberTotalSum) {
-          userWon = true;
-          winAmount = bet.betAmount * bet.multiplier;
+        // Check if user's bet matches the winning total sum
+        if (bet.selectedItem === "totalSum") {
+          if (bet.totalSum === winningNumberTotalSum) {
+            userWon = true;
+            winAmount = bet.betAmount * bet.multiplier;
+          }
         }
 
         // Check if user's bet matches the twoSameOneDifferent outcome
